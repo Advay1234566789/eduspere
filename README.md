@@ -1,4 +1,4 @@
-Here’s an **attractive and professional GitHub README** for your **Edusphere** project:
+
 
 ---
 
@@ -6,7 +6,7 @@ Here’s an **attractive and professional GitHub README** for your **Edusphere**
 # 🎓 Edusphere - Paperless College Management Platform
 
 A smart and seamless solution for modern campuses.  
-**Edusphere** is a full-stack platform that transforms traditional college operations into a **digital, efficient, and transparent** system for students and staff.
+Edusphere is a full-stack platform that transforms traditional college operations into a digital, efficient, and transparent system for students and staff.
 
 🚀 Built for [Hackfusion 2.0]
 
@@ -14,32 +14,32 @@ A smart and seamless solution for modern campuses.
 
 ## 🔧 Tech Stack
 
-- **Frontend:** React.js  
-- **Backend:** Node.js, Express.js  
-- **Database:** MongoDB  
-- **Email Service:** Email.js  
-- **Authentication:** Google Captcha v3
+- Frontend: React.js  
+- Backend: Node.js, Express.js  
+- Database: MongoDB  
+- Email Service: Email.js  
+- Authentication: Google Captcha v3
 
 ---
 
 ## ✨ Features
 
-✅ **Campus Management System**  
+✅ Campus Management System  
 Streamlined access to college facilities, real-time availability checks, and approval workflows.
 
-✅ **Online Facility Booking**  
+✅ Online Facility Booking  
 Students can request and book facilities directly through the platform with status tracking and admin approval.
 
-✅ **Transparent Applications**  
-Submit and track event, sponsorship, and budget approvals with **priority escalation**.
+✅ Transparent Applications  
+Submit and track event, sponsorship, and budget approvals with priority escalation.
 
-✅ **Automated Health Notifications**  
+✅ Automated Health Notifications  
 Instant updates via Email.js for health alerts and facility changes.
 
-✅ **Secure Authentication**  
+✅ Secure Authentication  
 Google Captcha v3 integration ensures bot protection and secure sign-ins.
 
-✅ **TPO & Scholarship Integration**  
+✅ TPO & Scholarship Integration  
 Access TPO notices and scholarship portals from one unified dashboard.
 
 ---
@@ -90,7 +90,7 @@ edusphere/
 
 ## 👨‍💻 Contributors
 
-* [Advay Dhule](https://github.com/Advay1234566789)
+ [Advay Dhule](https://github.com/Advay1234566789)
 
 ---
 
