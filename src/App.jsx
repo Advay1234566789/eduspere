@@ -35,10 +35,16 @@ const App = () => {
     }
   };
 
-  // New logout handler function
+  // Existing logout handler for Chatbot button
   const handleLogout = () => {
     localStorage.removeItem("userDetails");
-    window.location.href = "http://localhost:3003/"; // Change URL if needed
+    window.location.href = "http://localhost:3010/"; // Change URL if needed
+  };
+
+  // New logout handler for port 7800
+  const handleLogoutPort7800 = () => {
+    localStorage.removeItem("userDetails");
+    window.location.href = "http://localhost:7800/"; // Redirect to port 7800
   };
 
   return (
@@ -56,12 +62,19 @@ const App = () => {
               >
                 {buttonText}
               </button>
-              {/* Added Logout Button */}
+              {/* Existing Chatbot Logout Button */}
               <button
                 onClick={handleLogout}
                 className="bg-red-600 py-2 px-4 rounded-md text-white hover:bg-red-700"
               >
-                Logout
+                Chatbot
+              </button>
+              {/* New Logout Button for port 7800 */}
+              <button
+                onClick={handleLogoutPort7800}
+                className="bg-blue-600 py-2 px-4 rounded-md text-white hover:bg-blue-700"
+              >
+               Meeting
               </button>
             </div>
           </div>

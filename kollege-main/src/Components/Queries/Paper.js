@@ -1,3 +1,4 @@
+
 "use client";
 import React, { useState, useEffect } from "react";
 
@@ -25,6 +26,11 @@ const getBlocksFromStorage = () => {
   return data ? JSON.parse(data) : [];
 };
 
+const getVotersFromStorage = () => {
+  const data = localStorage.getItem("voters");
+  return data ? JSON.parse(data) : [];
+};
+
 const saveCandidatesToStorage = (candidates) => {
   localStorage.setItem("candidates", JSON.stringify(candidates));
 };
@@ -33,12 +39,25 @@ const saveBlocksToStorage = (blocks) => {
   localStorage.setItem("blocks", JSON.stringify(blocks));
 };
 
+const saveVotersToStorage = (voters) => {
+  localStorage.setItem("voters", JSON.stringify(voters));
+};
+
 // ------------------------------
 // Background Component
 // ------------------------------
 const BackgroundStatic = ({ children }) => {
   return (
-    <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+    <div
+      style={{
+        minHeight: "100vh",
+        background: "linear-gradient(to bottom, #1e3c72, #2a5298)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "20px",
+      }}
+    >
       {children}
     </div>
   );
@@ -51,20 +70,33 @@ const BlockModal = ({ isOpen, block, onClose }) => {
   if (!isOpen || !block) return null;
   return (
     <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        backgroundColor: "rgba(0, 0, 0, 0.6)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "20px",
+        zIndex: 50,
+      }}
       onClick={onClose}
-      className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center p-5 z-50"
     >
       <div
+        style={{
+          background: "#fff",
+          padding: "20px",
+          borderRadius: "8px",
+          maxWidth: "400px",
+          width: "100%",
+        }}
         onClick={(e) => e.stopPropagation()}
-        className="bg-gray-800 text-white p-5 rounded-lg max-w-sm w-full"
       >
-        <div className="flex justify-between mb-2">
-          <h3 className="text-lg font-semibold">Block Details</h3>
-          <button onClick={onClose} className="text-xl">
-            &times;
-          </button>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "10px" }}>
+          <h3>Block Details</h3>
+          <button onClick={onClose}>✕</button>
         </div>
-        <div className="text-sm">
+        <div style={{ fontSize: "14px" }}>
           <p>
             <strong>Index:</strong> {block.index}
           </p>
@@ -75,6 +107,11 @@ const BlockModal = ({ isOpen, block, onClose }) => {
             <strong>Candidate:</strong>{" "}
             {block.candidateId === "GENESIS" ? "Genesis" : block.candidateName}
           </p>
+          {block.gender && (
+            <p>
+              <strong>Gender:</strong> {block.gender}
+            </p>
+          )}
           {block.wallet && (
             <p>
               <strong>Voter Wallet:</strong> {block.wallet}
@@ -103,15 +140,55 @@ const Paper = () => {
   const [walletAddress, setWalletAddress] = useState("");
   const [hasVoted, setHasVoted] = useState(false);
   const [selectedCandidate, setSelectedCandidate] = useState(null);
-  // New candidate registration fields
+  // New candidate registration fields including gender
   const [newCandidateName, setNewCandidateName] = useState("");
   const [newCandidateParty, setNewCandidateParty] = useState("");
+  const [newCandidateGender, setNewCandidateGender] = useState("");
   const [newCandidateWallet, setNewCandidateWallet] = useState("");
   const [newCandidateDeposit, setNewCandidateDeposit] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [modalBlock, setModalBlock] = useState(null);
   // Reward distribution details
   const [rewardDetails, setRewardDetails] = useState(null);
+  // ------------------------------
+  // Election Timer State (new additions)
+  // ------------------------------
+  const [electionDuration, setElectionDuration] = useState(""); // in minutes
+  const [electionEndTime, setElectionEndTime] = useState(null);
+  const [currentTime, setCurrentTime] = useState(new Date());
+  // ------------------------------
+  // New Voter Registration State
+  // ------------------------------
+  const [voters, setVoters] = useState([]);
+  const [newVoterName, setNewVoterName] = useState("");
+  const [newVoterPRN, setNewVoterPRN] = useState("");
+  const [newVoterGender, setNewVoterGender] = useState("");
+
+  // Check for an existing election end time on mount
+  useEffect(() => {
+    const storedEndTime = localStorage.getItem("electionEndTime");
+    if (storedEndTime) {
+      const parsedEndTime = new Date(storedEndTime);
+      setElectionEndTime(parsedEndTime);
+      if (new Date() < parsedEndTime) {
+        // If election is still ongoing, go directly to voting page
+        setPage("candidates");
+      }
+    }
+    // Also load registered voters if any
+    const storedVoters = getVotersFromStorage();
+    if (storedVoters.length > 0) {
+      setVoters(storedVoters);
+    }
+  }, []);
+
+  // Update current time every second
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   // ------------------------------
   // Initialize Data (from localStorage)
@@ -188,17 +265,18 @@ const Paper = () => {
   };
 
   // ------------------------------
-  // Add Candidate (with wallet and deposit)
+  // Add Candidate (with wallet, deposit, and gender)
   // ------------------------------
   const handleAddCandidate = (e) => {
     e.preventDefault();
     if (
       newCandidateName.trim() === "" ||
       newCandidateParty.trim() === "" ||
+      newCandidateGender.trim() === "" ||
       newCandidateWallet.trim() === "" ||
       newCandidateDeposit.trim() === ""
     ) {
-      alert("Please provide candidate name, party, wallet, and deposit amount.");
+      alert("Please provide candidate name, party, gender, wallet, and deposit amount.");
       return;
     }
     const deposit = parseFloat(newCandidateDeposit);
@@ -210,6 +288,7 @@ const Paper = () => {
       id: "c" + (candidates.length + 1).toString(),
       name: newCandidateName,
       party: newCandidateParty,
+      gender: newCandidateGender,
       wallet: newCandidateWallet,
       deposit: deposit,
     };
@@ -218,8 +297,36 @@ const Paper = () => {
     saveCandidatesToStorage(updatedCandidates);
     setNewCandidateName("");
     setNewCandidateParty("");
+    setNewCandidateGender("");
     setNewCandidateWallet("");
     setNewCandidateDeposit("");
+  };
+
+  // ------------------------------
+  // Add Voter (registering voter with name, PRN and gender)
+  // ------------------------------
+  const handleAddVoter = (e) => {
+    e.preventDefault();
+    if (
+      newVoterName.trim() === "" ||
+      newVoterPRN.trim() === "" ||
+      newVoterGender.trim() === ""
+    ) {
+      alert("Please fill in all voter details.");
+      return;
+    }
+    const newVoter = {
+      id: "v" + (voters.length + 1).toString(),
+      name: newVoterName,
+      prn: newVoterPRN,
+      gender: newVoterGender,
+    };
+    const updatedVoters = [...voters, newVoter];
+    setVoters(updatedVoters);
+    saveVotersToStorage(updatedVoters);
+    setNewVoterName("");
+    setNewVoterPRN("");
+    setNewVoterGender("");
   };
 
   // ------------------------------
@@ -239,6 +346,7 @@ const Paper = () => {
       timestamp: new Date().toISOString(),
       candidateId: candidate.id,
       candidateName: candidate.name,
+      gender: candidate.gender, // Include candidate gender
       wallet: walletAddress, // voter wallet
       previousHash: previousBlock.hash,
       hash: "",
@@ -291,111 +399,186 @@ const Paper = () => {
   // Render Different Pages
   // ------------------------------
 
-  // Connection Page
+  // Connection Page: Only show election duration input if wallet is connected.
   if (page === "connection") {
     return (
       <BackgroundStatic>
-        <div className="max-w-3xl mx-auto text-center text-white">
-          <h1 className="text-4xl font-bold mb-5">Student Election 2025</h1>
-          <p className="text-lg mb-5">Blockchain-Based Voting System</p>
+        <div style={{ maxWidth: "800px", margin: "0 auto", padding: "20px", textAlign: "center", color: "#fff" }}>
+          <h1 style={{ fontSize: "3rem", marginBottom: "20px" }}>Student Election 2025</h1>
+          <p style={{ fontSize: "1.2rem", marginBottom: "20px" }}>Blockchain-Based Voting System</p>
           {walletAddress ? (
-            <p className="text-green-400">Connected Wallet: {walletAddress}</p>
+            <>
+              <p style={{ color: "lightgreen" }}>Connected Wallet: {walletAddress}</p>
+              <div style={{ marginTop: "20px" }}>
+                <label style={{ display: "block", marginBottom: "5px" }}>Election Duration (minutes):</label>
+                <input
+                  type="number"
+                  value={electionDuration}
+                  onChange={(e) => setElectionDuration(e.target.value)}
+                  style={{ padding: "8px", borderRadius: "4px", border: "1px solid #ccc", width: "100px", marginBottom: "10px" }}
+                  placeholder="Duration"
+                />
+              </div>
+              <div style={{ marginTop: "20px" }}>
+                <button
+                  onClick={() => {
+                    if (!electionDuration) {
+                      alert("Please enter election duration in minutes.");
+                      return;
+                    }
+                    const newEndTime = new Date(new Date().getTime() + parseInt(electionDuration) * 60000);
+                    setElectionEndTime(newEndTime);
+                    localStorage.setItem("electionEndTime", newEndTime.toISOString());
+                    setPage("candidates");
+                  }}
+                  style={{ padding: "10px 20px", backgroundColor: "#28a745", color: "#fff", border: "none", borderRadius: "5px" }}
+                >
+                  Proceed
+                </button>
+              </div>
+            </>
           ) : (
-            <button
-              onClick={connectWallet}
-              className="px-5 py-3 bg-blue-500 hover:bg-blue-600 rounded"
-            >
-              Connect Wallet
-            </button>
+            <>
+              <button
+                onClick={connectWallet}
+                style={{ padding: "10px 20px", backgroundColor: "#007bff", color: "#fff", border: "none", borderRadius: "5px" }}
+              >
+                Connect Wallet
+              </button>
+              <p>Please connect your MetaMask wallet before voting.</p>
+            </>
           )}
-          <div className="mt-5">
-            <button
-              onClick={() => {
-                if (walletAddress) {
-                  setPage("candidates");
-                } else {
-                  alert("Please connect your wallet first.");
-                }
-              }}
-              className="px-5 py-3 bg-green-500 hover:bg-green-600 rounded"
-            >
-              Proceed
-            </button>
-          </div>
         </div>
       </BackgroundStatic>
     );
   }
 
-  // Candidates Page
+  // Candidates Page (Candidate Registration)
   if (page === "candidates") {
     return (
       <BackgroundStatic>
-        <div className="max-w-3xl mx-auto text-white">
-          <section className="mb-8">
-            <h2 className="text-2xl font-bold mb-4">Add Candidate</h2>
-            <form onSubmit={handleAddCandidate} className="bg-gray-700 p-5 rounded-lg">
-              <div className="mb-4">
-                <label className="block mb-2">Candidate Name</label>
+        <div style={{ maxWidth: "800px", margin: "0 auto", padding: "20px", color: "#fff" }}>
+          {/* Prompt to connect wallet if not connected */}
+          {!walletAddress && (
+            <div style={{ textAlign: "center", marginBottom: "20px" }}>
+              <p>Please connect your MetaMask wallet before voting.</p>
+              <button
+                onClick={connectWallet}
+                style={{ padding: "10px 20px", backgroundColor: "#007bff", color: "#fff", border: "none", borderRadius: "5px" }}
+              >
+                Connect Wallet
+              </button>
+            </div>
+          )}
+          <section style={{ marginBottom: "40px" }}>
+            <h2 style={{ fontSize: "2rem", marginBottom: "20px" }}>Add Candidate</h2>
+            <form onSubmit={handleAddCandidate} style={{ backgroundColor: "#333", padding: "20px", borderRadius: "8px" }}>
+              <div style={{ marginBottom: "10px" }}>
+                <label style={{ display: "block", marginBottom: "5px" }}>Candidate Name</label>
                 <input
                   type="text"
                   value={newCandidateName}
                   onChange={(e) => setNewCandidateName(e.target.value)}
-                  className="w-full p-2 rounded border border-gray-400"
+                  style={{ width: "100%", padding: "8px", borderRadius: "4px", border: "1px solid #ccc" }}
                   placeholder="Enter candidate name"
                 />
               </div>
-              <div className="mb-4">
-                <label className="block mb-2">Party</label>
+              <div style={{ marginBottom: "10px" }}>
+                <label style={{ display: "block", marginBottom: "5px" }}>Party</label>
                 <input
                   type="text"
                   value={newCandidateParty}
                   onChange={(e) => setNewCandidateParty(e.target.value)}
-                  className="w-full p-2 rounded border border-gray-400"
+                  style={{ width: "100%", padding: "8px", borderRadius: "4px", border: "1px solid #ccc" }}
                   placeholder="Enter party name"
                 />
               </div>
-              <div className="mb-4">
-                <label className="block mb-2">Wallet Address</label>
+              <div style={{ marginBottom: "10px" }}>
+                <label style={{ display: "block", marginBottom: "5px" }}>Gender</label>
+                <input
+                  type="text"
+                  value={newCandidateGender}
+                  onChange={(e) => setNewCandidateGender(e.target.value)}
+                  style={{ width: "100%", padding: "8px", borderRadius: "4px", border: "1px solid #ccc" }}
+                  placeholder="Enter candidate gender"
+                />
+              </div>
+              <div style={{ marginBottom: "10px" }}>
+                <label style={{ display: "block", marginBottom: "5px" }}>Wallet Address</label>
                 <input
                   type="text"
                   value={newCandidateWallet}
                   onChange={(e) => setNewCandidateWallet(e.target.value)}
-                  className="w-full p-2 rounded border border-gray-400"
+                  style={{ width: "100%", padding: "8px", borderRadius: "4px", border: "1px solid #ccc" }}
                   placeholder="Enter candidate wallet address"
                 />
               </div>
-              <div className="mb-4">
-                <label className="block mb-2">Deposit Amount (Test Tokens)</label>
+              <div style={{ marginBottom: "10px" }}>
+                <label style={{ display: "block", marginBottom: "5px" }}>Deposit Amount (Test Tokens)</label>
                 <input
                   type="number"
                   value={newCandidateDeposit}
                   onChange={(e) => setNewCandidateDeposit(e.target.value)}
-                  className="w-full p-2 rounded border border-gray-400"
+                  style={{ width: "100%", padding: "8px", borderRadius: "4px", border: "1px solid #ccc" }}
                   placeholder="Enter deposit amount"
                 />
               </div>
-              <button type="submit" className="px-5 py-3 bg-green-500 hover:bg-green-600 rounded">
+              <button
+                type="submit"
+                style={{ padding: "10px 20px", backgroundColor: "#28a745", color: "#fff", border: "none", borderRadius: "5px" }}
+              >
                 Add Candidate
               </button>
             </form>
           </section>
 
-          <section className="mb-8">
-            <h2 className="text-2xl font-bold mb-4">Candidates</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <section style={{ marginBottom: "40px" }}>
+            <h2 style={{ fontSize: "2rem", marginBottom: "20px" }}>Candidates</h2>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "20px" }}>
               {candidates.map((candidate) => (
-                <div key={candidate.id} className="bg-gray-700 p-5 rounded-lg text-center">
-                  <div className="w-16 h-16 mx-auto rounded-full bg-indigo-600 flex items-center justify-center text-2xl font-bold text-white mb-3">
+                <div
+                  key={candidate.id}
+                  style={{
+                    backgroundColor: "#333",
+                    padding: "20px",
+                    borderRadius: "8px",
+                    textAlign: "center",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: "60px",
+                      height: "60px",
+                      borderRadius: "50%",
+                      backgroundColor: "#6c63ff",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      margin: "0 auto 10px auto",
+                      fontSize: "1.5rem",
+                      fontWeight: "bold",
+                      color: "#fff",
+                    }}
+                  >
                     {candidate.name.charAt(0)}
                   </div>
-                  <h3 className="text-xl font-semibold">{candidate.name}</h3>
-                  <p className="mb-1">{candidate.party}</p>
-                  <p className="text-sm text-gray-400 mb-1">Fee: {candidate.deposit} tokens</p>
-                  <p className="text-sm text-gray-400 mb-3">Wallet: {candidate.wallet}</p>
+                  <h3>{candidate.name}</h3>
+                  <p style={{ marginBottom: "5px" }}>{candidate.party}</p>
+                  {candidate.gender && (
+                    <p style={{ marginBottom: "5px", fontSize: "0.9rem" }}>Gender: {candidate.gender}</p>
+                  )}
+                  <p style={{ fontSize: "0.8rem", color: "#aaa" }}>Fee: {candidate.deposit} tokens</p>
+                  <p style={{ fontSize: "0.8rem", color: "#aaa" }}>Wallet: {candidate.wallet}</p>
                   <button
                     onClick={() => handleVote(candidate.id)}
-                    className="px-4 py-2 bg-blue-500 hover:bg-blue-600 rounded"
+                    style={{
+                      padding: "8px 16px",
+                      backgroundColor: "#007bff",
+                      color: "#fff",
+                      border: "none",
+                      borderRadius: "5px",
+                      marginTop: "10px",
+                    }}
                   >
                     Vote
                   </button>
@@ -403,12 +586,177 @@ const Paper = () => {
               ))}
             </div>
           </section>
-          <div className="text-center">
+          {/* NEW: Proceed to Voter Registration if at least one candidate exists */}
+          {candidates.length > 0 && (
+            <div style={{ textAlign: "center", marginTop: "20px" }}>
+              <button
+                onClick={() => setPage("registerVoters")}
+                style={{ padding: "10px 20px", backgroundColor: "#17a2b8", color: "#fff", border: "none", borderRadius: "5px" }}
+              >
+                Proceed to Voter Registration
+              </button>
+            </div>
+          )}
+        </div>
+      </BackgroundStatic>
+    );
+  }
+
+  // ------------------------------
+  // Voter Registration Page
+  // ------------------------------
+  if (page === "registerVoters") {
+    return (
+      <BackgroundStatic>
+        <div style={{ maxWidth: "800px", margin: "0 auto", padding: "20px", color: "#fff" }}>
+          <h2 style={{ fontSize: "2rem", marginBottom: "20px" }}>Register Voters</h2>
+          <form onSubmit={handleAddVoter} style={{ backgroundColor: "#333", padding: "20px", borderRadius: "8px", marginBottom: "20px" }}>
+            <div style={{ marginBottom: "10px" }}>
+              <label style={{ display: "block", marginBottom: "5px" }}>Voter Name</label>
+              <input
+                type="text"
+                value={newVoterName}
+                onChange={(e) => setNewVoterName(e.target.value)}
+                style={{ width: "100%", padding: "8px", borderRadius: "4px", border: "1px solid #ccc" }}
+                placeholder="Enter voter name"
+              />
+            </div>
+            <div style={{ marginBottom: "10px" }}>
+              <label style={{ display: "block", marginBottom: "5px" }}>PRN</label>
+              <input
+                type="text"
+                value={newVoterPRN}
+                onChange={(e) => setNewVoterPRN(e.target.value)}
+                style={{ width: "100%", padding: "8px", borderRadius: "4px", border: "1px solid #ccc" }}
+                placeholder="Enter PRN"
+              />
+            </div>
+            <div style={{ marginBottom: "10px" }}>
+              <label style={{ display: "block", marginBottom: "5px" }}>Gender</label>
+              <input
+                type="text"
+                value={newVoterGender}
+                onChange={(e) => setNewVoterGender(e.target.value)}
+                style={{ width: "100%", padding: "8px", borderRadius: "4px", border: "1px solid #ccc" }}
+                placeholder="Enter gender"
+              />
+            </div>
+            <button
+              type="submit"
+              style={{ padding: "10px 20px", backgroundColor: "#28a745", color: "#fff", border: "none", borderRadius: "5px" }}
+            >
+              Add Voter
+            </button>
+          </form>
+          <section style={{ marginBottom: "20px" }}>
+            <h3 style={{ fontSize: "1.5rem", marginBottom: "10px" }}>Registered Voters</h3>
+            {voters.length > 0 ? (
+              voters.map((voter) => (
+                <div key={voter.id} style={{ backgroundColor: "#444", padding: "10px", borderRadius: "5px", marginBottom: "10px" }}>
+                  {voter.name} - {voter.prn} - {voter.gender}
+                </div>
+              ))
+            ) : (
+              <p>No voters registered yet.</p>
+            )}
+          </section>
+          {voters.length > 0 && (
+            <div style={{ textAlign: "center", marginBottom: "10px" }}>
+              <button
+                onClick={() => setPage("voting")}
+                style={{ padding: "10px 20px", backgroundColor: "#17a2b8", color: "#fff", border: "none", borderRadius: "5px", marginRight: "10px" }}
+              >
+                Proceed to Voting
+              </button>
+            </div>
+          )}
+          <div style={{ textAlign: "center" }}>
+            <button
+              onClick={() => setPage("candidates")}
+              style={{ padding: "10px 20px", backgroundColor: "#6c757d", color: "#fff", border: "none", borderRadius: "5px" }}
+            >
+              Back to Candidate Registration
+            </button>
+          </div>
+        </div>
+      </BackgroundStatic>
+    );
+  }
+
+  // ------------------------------
+  // Voting Page (Candidates with vote buttons)
+  // ------------------------------
+  if (page === "voting") {
+    return (
+      <BackgroundStatic>
+        <div style={{ maxWidth: "800px", margin: "0 auto", padding: "20px", color: "#fff" }}>
+          <h2 style={{ fontSize: "2rem", textAlign: "center", marginBottom: "20px" }}>Voting</h2>
+          <section style={{ marginBottom: "40px" }}>
+            <h2 style={{ fontSize: "2rem", marginBottom: "20px" }}>Candidates</h2>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "20px" }}>
+              {candidates.map((candidate) => (
+                <div
+                  key={candidate.id}
+                  style={{
+                    backgroundColor: "#333",
+                    padding: "20px",
+                    borderRadius: "8px",
+                    textAlign: "center",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: "60px",
+                      height: "60px",
+                      borderRadius: "50%",
+                      backgroundColor: "#6c63ff",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      margin: "0 auto 10px auto",
+                      fontSize: "1.5rem",
+                      fontWeight: "bold",
+                      color: "#fff",
+                    }}
+                  >
+                    {candidate.name.charAt(0)}
+                  </div>
+                  <h3>{candidate.name}</h3>
+                  <p style={{ marginBottom: "5px" }}>{candidate.party}</p>
+                  {candidate.gender && (
+                    <p style={{ marginBottom: "5px", fontSize: "0.9rem" }}>Gender: {candidate.gender}</p>
+                  )}
+                  <p style={{ fontSize: "0.8rem", color: "#aaa" }}>Fee: {candidate.deposit} tokens</p>
+                  <p style={{ fontSize: "0.8rem", color: "#aaa" }}>Wallet: {candidate.wallet}</p>
+                  <button
+                    onClick={() => handleVote(candidate.id)}
+                    style={{
+                      padding: "8px 16px",
+                      backgroundColor: "#007bff",
+                      color: "#fff",
+                      border: "none",
+                      borderRadius: "5px",
+                      marginTop: "10px",
+                    }}
+                  >
+                    Vote
+                  </button>
+                </div>
+              ))}
+            </div>
+          </section>
+          <div style={{ textAlign: "center" }}>
             <button
               onClick={() => setPage("results")}
-              className="px-5 py-3 bg-green-500 hover:bg-green-600 rounded mr-2"
+              style={{ padding: "10px 20px", backgroundColor: "#28a745", color: "#fff", border: "none", borderRadius: "5px", marginRight: "10px" }}
             >
               View Real Time Results
+            </button>
+            <button
+              onClick={() => setPage("connection")}
+              style={{ padding: "10px 20px", backgroundColor: "#6c757d", color: "#fff", border: "none", borderRadius: "5px" }}
+            >
+              Disconnect
             </button>
           </div>
         </div>
@@ -421,14 +769,14 @@ const Paper = () => {
     const candidate = candidates.find((c) => c.id === selectedCandidate);
     return (
       <BackgroundStatic>
-        <div className="max-w-3xl mx-auto text-center text-white">
-          <h2 className="text-2xl font-bold mb-5">Thank you for voting!</h2>
-          <p className="mb-5">
+        <div style={{ maxWidth: "800px", margin: "0 auto", padding: "20px", textAlign: "center", color: "#fff" }}>
+          <h2 style={{ fontSize: "2rem", marginBottom: "20px" }}>Thank you for voting!</h2>
+          <p style={{ marginBottom: "20px" }}>
             {candidate ? `You voted for ${candidate.name}` : "Vote recorded."}
           </p>
           <button
             onClick={() => setPage("results")}
-            className="px-5 py-3 bg-green-500 hover:bg-green-600 rounded"
+            style={{ padding: "10px 20px", backgroundColor: "#28a745", color: "#fff", border: "none", borderRadius: "5px" }}
           >
             View Results
           </button>
@@ -439,6 +787,17 @@ const Paper = () => {
 
   // Results Page
   if (page === "results") {
+    if (electionEndTime && currentTime < electionEndTime) {
+      const timeLeft = Math.ceil((electionEndTime - currentTime) / 1000);
+      return (
+        <BackgroundStatic>
+          <div style={{ textAlign: "center", color: "#fff" }}>
+            <h2>Election is still ongoing</h2>
+            <p>Results will be available in {timeLeft} seconds.</p>
+          </div>
+        </BackgroundStatic>
+      );
+    }
     const chartData = candidates.map((candidate) => ({
       name: candidate.name,
       votes: results[candidate.id] || 0,
@@ -447,43 +806,55 @@ const Paper = () => {
 
     return (
       <BackgroundStatic>
-        <div className="max-w-3xl mx-auto text-white">
-          <h2 className="text-2xl font-bold text-center mb-5">Election Results</h2>
-          <div className="bg-gray-700 p-5 rounded-lg mb-5">
+        <div style={{ maxWidth: "800px", margin: "0 auto", padding: "20px", color: "#fff" }}>
+          <h2 style={{ fontSize: "2rem", textAlign: "center", marginBottom: "20px" }}>Election Results</h2>
+          <div style={{ backgroundColor: "#333", padding: "20px", borderRadius: "8px", marginBottom: "20px" }}>
             {chartData.map((data, index) => (
-              <div key={index} className="mb-3">
+              <div key={index} style={{ marginBottom: "10px" }}>
                 <div>
                   {data.name} ({data.votes} votes)
                 </div>
                 <div
-                  className="h-5 bg-green-400 transition-all"
-                  style={{ width: `${(data.votes / maxVotes) * 100}%` }}
+                  style={{
+                    background: "#82ca9d",
+                    height: "20px",
+                    width: `${(data.votes / maxVotes) * 100}%`,
+                    transition: "width 0.5s",
+                  }}
                 ></div>
               </div>
             ))}
           </div>
-          <section className="mb-5">
-            <h3 className="text-xl font-semibold mb-3">Blockchain Records</h3>
+          <section style={{ marginBottom: "20px" }}>
+            <h3 style={{ fontSize: "1.5rem", marginBottom: "10px" }}>Blockchain Records</h3>
             <div>
               {blockchain.map((block) => (
                 <div
                   key={block.index}
-                  className="bg-gray-700 p-3 rounded mb-3 cursor-pointer"
+                  style={{
+                    backgroundColor: "#333",
+                    padding: "10px",
+                    borderRadius: "5px",
+                    marginBottom: "10px",
+                    cursor: "pointer",
+                  }}
                   onClick={() => {
                     setModalBlock(block);
                     setShowModal(true);
                   }}
                 >
-                  <div className="flex justify-between text-gray-400">
+                  <div style={{ display: "flex", justifyContent: "space-between", color: "#ccc" }}>
                     <span>Block #{block.index}</span>
                     <span>{new Date(block.timestamp).toLocaleString()}</span>
                   </div>
-                  <div className="text-gray-300 mt-1">
+                  <div style={{ color: "#aaa", marginTop: "5px" }}>
                     <p>
-                      Candidate:{" "}
-                      {block.candidateId === "GENESIS" ? "Genesis Block" : block.candidateName}
+                      Candidate: {block.candidateId === "GENESIS" ? "Genesis Block" : block.candidateName}
                     </p>
-                    <p className="text-xs overflow-hidden whitespace-nowrap">
+                    {block.gender && (
+                      <p style={{ fontSize: "12px" }}>Gender: {block.gender}</p>
+                    )}
+                    <p style={{ fontSize: "12px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       Hash: {block.hash}
                     </p>
                   </div>
@@ -499,38 +870,36 @@ const Paper = () => {
               setModalBlock(null);
             }}
           />
-          <div className="text-center mt-5">
+          <div style={{ textAlign: "center", marginTop: "20px" }}>
             <button
               onClick={() => setPage("candidates")}
-              className="px-5 py-3 bg-blue-500 hover:bg-blue-600 rounded mr-2"
+              style={{ padding: "10px 20px", backgroundColor: "#007bff", color: "#fff", border: "none", borderRadius: "5px", marginRight: "10px" }}
             >
               Back to Voting
             </button>
             <button
               onClick={() => setPage("connection")}
-              className="px-5 py-3 bg-gray-600 hover:bg-gray-700 rounded"
+              style={{ padding: "10px 20px", backgroundColor: "#6c757d", color: "#fff", border: "none", borderRadius: "5px" }}
             >
               Disconnect
             </button>
           </div>
-          <div className="text-center mt-5">
+          <div style={{ textAlign: "center", marginTop: "20px" }}>
             <button
               onClick={rewardWinner}
-              className="px-5 py-3 bg-yellow-500 hover:bg-yellow-600 rounded"
+              style={{ padding: "10px 20px", backgroundColor: "#ff9800", color: "#fff", border: "none", borderRadius: "5px" }}
             >
               Reward Winner
             </button>
           </div>
           {rewardDetails && (
-            <div className="mt-5 bg-gray-800 p-5 rounded text-center">
-              <h3 className="text-xl font-semibold mb-2">Winner Reward</h3>
+            <div style={{ marginTop: "20px", backgroundColor: "#444", padding: "15px", borderRadius: "8px", textAlign: "center" }}>
+              <h3>Winner Reward</h3>
               <p>
-                {rewardDetails.winner.name} (Wallet: {rewardDetails.winner.wallet})
-                wins with {results[rewardDetails.winner.id] || 0} votes.
+                {rewardDetails.winner.name} (Wallet: {rewardDetails.winner.wallet}) wins with {results[rewardDetails.winner.id] || 0} votes.
               </p>
               <p>
-                Reward Amount: {rewardDetails.reward.toFixed(2)} test tokens (75% of
-                total candidate deposits).
+                Reward Amount: {rewardDetails.reward.toFixed(2)} test tokens (75% of total candidate deposits).
               </p>
             </div>
           )}

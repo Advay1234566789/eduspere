@@ -32,9 +32,9 @@ const userSchema = new mongoose.Schema({
     trim: true,
     validate: {
       validator: function (v) {
-        return v.endsWith('@vit.edu');
+        return v.endsWith('@abc.edu');
       },
-      message: 'Email must be a valid college email (@vit.edu)',
+      message: 'Email must be a valid college email (@abc.edu)',
     },
   },
   password: {
@@ -60,8 +60,8 @@ app.post('/api/register', async (req, res) => {
     const { username, email, password, userType } = req.body;
 
     // Validate email domain
-    if (!email.endsWith('@vit.edu')) {
-      return res.status(400).json({ error: 'Please use your college email (@vit.edu)' });
+    if (!email.endsWith('@abc.edu')) {
+      return res.status(400).json({ error: 'Please use your college email (@abc.edu)' });
     }
 
     // Check if user already exists (by email or username)

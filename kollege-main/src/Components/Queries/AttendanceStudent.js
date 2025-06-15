@@ -1,9 +1,10 @@
+// HealthLeaveNotifications.js
 import { useState, useContext, useMemo } from "react";
 import emailjs from "@emailjs/browser";
 import UserContext from "../../Hooks/UserContext";
 import ErrorStrip from "../ErrorStrip";
 
-// Card Component
+// Reusable Card Components
 const Card = ({ children, className = "" }) => (
   <div className={`rounded-lg border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900 ${className}`}>
     {children}
@@ -22,13 +23,12 @@ const CardContent = ({ children, className = "" }) => (
   <div className={`p-6 pt-0 ${className}`}>{children}</div>
 );
 
-// Badge Component
+// Badge Component for step indicator
 const Badge = ({ children, variant = "default", className = "" }) => {
   const variants = {
     default: "bg-slate-900 text-slate-50",
     secondary: "bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-50"
   };
-  
   return (
     <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 ${variants[variant]} ${className}`}>
       {children}
@@ -51,6 +51,7 @@ const TabsTrigger = ({ children, value, className = "" }) => (
   <button
     className={`inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-white transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 ${className}`}
     role="tab"
+    onClick={() => {}}
   >
     {children}
   </button>
@@ -69,10 +70,10 @@ const HealthLeaveNotifications = () => {
   const minDate = useMemo(() => {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
-    return tomorrow.toISOString().split('T')[0];
+    return tomorrow.toISOString().split("T")[0];
   }, []);
 
-  // Doctor's Update states (Step 1)
+  // Doctor's Update (Step 1) states
   const [sickReason, setSickReason] = useState("");
   const [additionalSymptoms, setAdditionalSymptoms] = useState("");
   const [severity, setSeverity] = useState("");
@@ -80,7 +81,7 @@ const HealthLeaveNotifications = () => {
   const [coordinatorEmail, setCoordinatorEmail] = useState("");
   const [className, setClassName] = useState("");
 
-  // Leave Report states (Step 2)
+  // Leave Report (Step 2) states
   const [leaveReason, setLeaveReason] = useState("");
   const [expectedReturn, setExpectedReturn] = useState("");
   const [confirmLeave, setConfirmLeave] = useState(false);
@@ -91,12 +92,7 @@ const HealthLeaveNotifications = () => {
   // Email sending function using EmailJS
   const sendEmail = async (templateId, templateParams) => {
     try {
-      await emailjs.send(
-        "service_30qva3w",
-        templateId,
-        templateParams,
-        "O_e0xLYooqSDsjjl1"
-      );
+      await emailjs.send("service_30qva3w", templateId, templateParams, "O_e0xLYooqSDsjjl1");
       setStatus("Notification email sent successfully.");
     } catch (err) {
       setError("Failed to send email notification.");
@@ -109,7 +105,7 @@ const HealthLeaveNotifications = () => {
     const options = {
       method: "POST",
       headers: {
-        "authorization": "GhpPvN9oldVbZiaQWf3EqJSUIMnDY0tCg8kBT2cXLOu1RHyjesJg9uRUHKYnV7mriDcG8beO5tz01N2X",
+        authorization: "YOUR_FAST2SMS_API_KEY",
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
@@ -130,6 +126,21 @@ const HealthLeaveNotifications = () => {
     }
   };
 
+  // Save the leave request to the backend
+  const submitLeaveRequest = async (payload) => {
+    try {
+      const response = await fetch("http://localhost:8500/api/leaveRequests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const data = await response.json();
+      console.log("Leave request saved:", data);
+    } catch (error) {
+      console.error("Error saving leave request:", error);
+    }
+  };
+
   // Handle Doctor's Update Submission (Step 1)
   const handleDoctorUpdate = () => {
     if (!sickReason.trim()) {
@@ -140,7 +151,6 @@ const HealthLeaveNotifications = () => {
       setError("Please select a severity level.");
       return;
     }
-
     setError("");
     const message = `Student ${user.name} has been reported sick.
 Reason: ${sickReason}
@@ -180,7 +190,6 @@ Severity: ${severity}`;
       setError("Please enter your parent's email.");
       return;
     }
-
     setError("");
     const message = `Student ${user.name} is leaving campus.
 Reason: ${leaveReason}
@@ -196,22 +205,37 @@ Expected Return Time: ${expectedReturn}`;
       additional_comments: additionalComments,
     };
 
+    // Send emails
     await sendEmail("template_xl3epgh", templateParams);
-
     try {
-      await emailjs.send(
-        "service_hul77eq",
-        "template_hct75om",
-        templateParams,
-        "bcj7VY3u7HG4cShur"
-      );
+      await emailjs.send("service_hul77eq", "template_hct75om", templateParams, "bcj7VY3u7HG4cShur");
       console.log("Second email sent successfully.");
     } catch (err) {
       console.error("Error sending second email:", err);
     }
-
     setStatus("Leave report submitted successfully.");
 
+    // Save the complete leave request in the backend
+    const payload = {
+      studentName: user.name,
+      studentEmail: user.email,
+      studentPhone: user.phone || "",
+      sickReason,
+      additionalSymptoms,
+      severity,
+      coordinatorName,
+      coordinatorEmail,
+      className,
+      leaveReason,
+      expectedReturn,
+      parentEmail,
+      parentPhone,
+      additionalComments,
+      status: "pending"
+    };
+    submitLeaveRequest(payload);
+
+    // Send SMS if phone exists
     if (user.phone) {
       const smsMessage = `Hi ${user.name}, your leave report has been submitted successfully. Safe journey!`;
       sendSMSNotification(user.phone, smsMessage);
@@ -219,29 +243,25 @@ Expected Return Time: ${expectedReturn}`;
   };
 
   return (
-    // The outer div now uses "min-h-screen bg-gray-900" to enforce a full-height dark background.
     <div className="min-h-screen bg-gray-900 dark">
       <main className="max-w-4xl mx-auto p-6">
         <div className="mb-8 space-y-4">
-          <h2 className="text-4xl font-bold text-blue-500">
-            Health & Leave Notifications
-          </h2>
-          <p className="text-slate-300">
-            Submit your health status and leave requests in two simple steps
-          </p>
+          <h2 className="text-4xl font-bold text-blue-500">Health & Leave Notifications</h2>
+          <p className="text-slate-300">Submit your health status and leave requests in two simple steps</p>
         </div>
-
         <Tabs value={currentStep} className="w-full">
           <TabsList className="grid w-full grid-cols-2 mb-6">
             <TabsTrigger
               value="doctorUpdate"
               className="data-[state=active]:bg-violet-900 data-[state=active]:text-white"
+              onClick={() => setCurrentStep("doctorUpdate")}
             >
               Step 1: Doctor's Update
             </TabsTrigger>
             <TabsTrigger
               value="leaveReport"
               className="data-[state=active]:bg-violet-900 data-[state=active]:text-white"
+              onClick={() => setCurrentStep("leaveReport")}
             >
               Step 2: Leave Report
             </TabsTrigger>
@@ -252,9 +272,7 @@ Expected Return Time: ${expectedReturn}`;
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   Doctor's Update
-                  <Badge variant="secondary" className="ml-2">
-                    Step 1 of 2
-                  </Badge>
+                  <Badge variant="secondary" className="ml-2">Step 1 of 2</Badge>
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -267,7 +285,6 @@ Expected Return Time: ${expectedReturn}`;
                     onChange={(e) => setSickReason(e.target.value)}
                   />
                 </div>
-
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Additional Symptoms</label>
                   <textarea
@@ -277,7 +294,6 @@ Expected Return Time: ${expectedReturn}`;
                     onChange={(e) => setAdditionalSymptoms(e.target.value)}
                   />
                 </div>
-
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Severity*</label>
                   <select
@@ -291,7 +307,6 @@ Expected Return Time: ${expectedReturn}`;
                     <option value="Severe">Severe</option>
                   </select>
                 </div>
-
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Coordinator Name</label>
@@ -314,7 +329,6 @@ Expected Return Time: ${expectedReturn}`;
                     />
                   </div>
                 </div>
-
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Class Name</label>
                   <input
@@ -325,7 +339,6 @@ Expected Return Time: ${expectedReturn}`;
                     onChange={(e) => setClassName(e.target.value)}
                   />
                 </div>
-
                 <button
                   className="w-full h-12 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors"
                   onClick={handleDoctorUpdate}
@@ -341,9 +354,7 @@ Expected Return Time: ${expectedReturn}`;
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   Leave Report
-                  <Badge variant="secondary" className="ml-2">
-                    Step 2 of 2
-                  </Badge>
+                  <Badge variant="secondary" className="ml-2">Step 2 of 2</Badge>
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -356,7 +367,6 @@ Expected Return Time: ${expectedReturn}`;
                     onChange={(e) => setLeaveReason(e.target.value)}
                   />
                 </div>
-
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Expected Return Date*</label>
                   <input
@@ -367,7 +377,6 @@ Expected Return Time: ${expectedReturn}`;
                     onChange={(e) => setExpectedReturn(e.target.value)}
                   />
                 </div>
-
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Parent's Email*</label>
@@ -390,7 +399,6 @@ Expected Return Time: ${expectedReturn}`;
                     />
                   </div>
                 </div>
-
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Additional Comments</label>
                   <textarea
@@ -400,7 +408,6 @@ Expected Return Time: ${expectedReturn}`;
                     onChange={(e) => setAdditionalComments(e.target.value)}
                   />
                 </div>
-
                 <div className="flex items-center space-x-2 p-4 bg-slate-50 rounded-lg dark:bg-slate-800">
                   <input
                     type="checkbox"
@@ -413,7 +420,6 @@ Expected Return Time: ${expectedReturn}`;
                     I confirm that I am leaving campus
                   </label>
                 </div>
-
                 <div className="flex gap-4">
                   <button
                     className="flex-1 h-12 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors"
@@ -432,13 +438,8 @@ Expected Return Time: ${expectedReturn}`;
             </Card>
           </TabsContent>
         </Tabs>
-
         <div className="mt-6">
-          {error ? (
-            <ErrorStrip error={error} />
-          ) : (
-            status && <p className="text-green-600">{status}</p>
-          )}
+          {error ? <ErrorStrip error={error} /> : status && <p className="text-green-600">{status}</p>}
         </div>
       </main>
     </div>

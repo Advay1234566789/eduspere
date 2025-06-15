@@ -26,7 +26,7 @@ const Login = ({ onLogin }) => {
   const [message, setMessage] = useState("");
 
   const isCollegeEmail = (email) => {
-    return email.toLowerCase().endsWith("@vit.edu");
+    return email.toLowerCase().endsWith("@abc.edu");
   };
 
   const handleChange = (e) => {
@@ -45,7 +45,7 @@ const Login = ({ onLogin }) => {
     }
 
     if (!isCollegeEmail(credentials.email)) {
-      setError("Please use your college email (@vit.edu)");
+      setError("Please use your college email (@abc.edu)");
       return;
     }
 

@@ -1,28 +1,89 @@
+// server.js
 const express = require('express');
 const http = require('http');
-const { Server } = require('socket.io');
+const socketIo = require('socket.io');
+const mongoose = require('mongoose');
+const cors = require('cors');
 
 const app = express();
-const server = http.createServer(app);
-const io = new Server(server);
+app.use(cors());
+app.use(express.json());
 
-// Middleware or routes can go here
-app.get('/', (req, res) => {
-  res.send('Socket.IO server is running.');
+// Create HTTP server and integrate with Socket.IO.
+const server = http.createServer(app);
+const io = socketIo(server, {
+  cors: {
+    origin: '*',
+  }
 });
 
-// Set up a basic connection listener
-io.on('connection', (socket) => {
-  console.log('A client connected:', socket.id);
-  
-  // Define other socket event listeners as needed
+// Connect to MongoDB.
+mongoose.connect('mongodb://localhost:27017/election', {
+  useNewUrlParser: true,
+  useUnifiedTopology: true
+})
+  .then(() => console.log('MongoDB connected'))
+  .catch(err => console.error('MongoDB connection error:', err));
 
+// Define the booking schema and model.
+const bookingSchema = new mongoose.Schema({
+  resource: String,
+  date: String,
+  time: String,
+  duration: Number,
+  details: String,
+  submittedBy: String,
+  status: { type: String, default: 'Pending' },
+  submissionDate: { type: Date, default: Date.now }
+});
+
+const Booking = mongoose.model('Booking', bookingSchema);
+
+// GET /bookings - retrieve all bookings.
+app.get('/bookings', async (req, res) => {
+  try {
+    const bookings = await Booking.find().sort({ submissionDate: -1 });
+    res.json(bookings);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /bookings - create a new booking.
+app.post('/bookings', async (req, res) => {
+  try {
+    const booking = new Booking(req.body);
+    await booking.save();
+    io.emit('newBooking', booking);
+    res.status(201).json(booking);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH /bookings/:id - update a booking (e.g. status update).
+app.patch('/bookings/:id', async (req, res) => {
+  try {
+    const booking = await Booking.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    if (booking) {
+      io.emit('bookingUpdated', booking);
+      res.json(booking);
+    } else {
+      res.status(404).json({ error: 'Booking not found' });
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Setup Socket.IO connection.
+io.on('connection', (socket) => {
+  console.log('Client connected: ' + socket.id);
   socket.on('disconnect', () => {
-    console.log('Client disconnected:', socket.id);
+    console.log('Client disconnected: ' + socket.id);
   });
 });
 
-// Listen on port 4500
-server.listen(4500, () => {
-  console.log('Server is running on http://localhost:4500');
-});
+// Start the server.
+const PORT = 5500;
+server.listen(PORT, () => console.log(`Server running on port ${PORT}`));

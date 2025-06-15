@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import Tesseract from 'tesseract.js';
+import * as tf from '@tensorflow/tfjs';
+import { loadGraphModel } from '@tensorflow/tfjs-converter';
 
 const API_URL = 'http://localhost:4500/api';
 
@@ -38,6 +40,23 @@ const ScholarshipManagementSystem = () => {
   const [applicantIncome, setApplicantIncome] = useState('');
   const [currentApplication, setCurrentApplication] = useState(null);
 
+  // New state to hold the CRNN model
+  const [crnnModel, setCrnnModel] = useState(null);
+
+  // Load the CRNN model once when the component mounts
+  useEffect(() => {
+    const loadCRNNModel = async () => {
+      try {
+        // Replace the URL below with the URL of your hosted CRNN model
+        const model = await loadGraphModel('https://your-model-url/model.json');
+        setCrnnModel(model);
+      } catch (error) {
+        console.error('Error loading CRNN model:', error);
+      }
+    };
+    loadCRNNModel();
+  }, []);
+
   const handleSearch = () => {
     const filteredScholarships = scholarships.filter(scholarship =>
       scholarship.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -57,6 +76,7 @@ const ScholarshipManagementSystem = () => {
     e.preventDefault();
     const newApplication = {
       ...selectedScholarship,
+      id: Date.now(), // Assign a unique id
       applicationDate: new Date().toLocaleString(),
       status: 'Submitted',
       eligibility: 'Pending',
@@ -72,6 +92,47 @@ const ScholarshipManagementSystem = () => {
     setActiveTab('ocr');
   };
 
+  // Helper function: load an image file into a tensor
+  const loadImageTensor = async (file) => {
+    const img = new Image();
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        img.src = reader.result;
+        img.onload = () => {
+          // Convert the image to a tensor
+          const tensor = tf.browser.fromPixels(img).toFloat();
+          // Resize to the dimensions your model expects (example: 32x128)
+          const resized = tf.image.resizeBilinear(tensor, [32, 128]);
+          // Normalize pixel values and add a batch dimension
+          const normalized = resized.div(255.0).expandDims(0);
+          resolve(normalized);
+        };
+        img.onerror = reject;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
+  // Helper function: process the model predictions to produce a string
+  const processPredictions = (predictions) => {
+    // NOTE: Implement the decoding of the predictions to your text here.
+    // This is highly model-specific. For demonstration, we return a dummy string.
+    return "dummy recognized text from CRNN";
+  };
+
+  // Function to perform OCR using the CRNN model
+  const recognizeWithCRNN = async (file) => {
+    // Load the image as a tensor
+    const imageTensor = await loadImageTensor(file);
+    // Run the model prediction
+    const predictions = await crnnModel.predict(imageTensor);
+    // Decode the predictions into a text string
+    const recognizedText = processPredictions(predictions);
+    return recognizedText;
+  };
+
   // Updated OCR-based document verification logic
   const handleDocumentUpload = async (e) => {
     const file = e.target.files[0];
@@ -80,10 +141,17 @@ const ScholarshipManagementSystem = () => {
       setUploadError('');
       setOcrResult('');
       try {
-        const { data: { text } } = await Tesseract.recognize(file, 'eng');
-        setOcrResult(text);
+        let recognizedText = '';
+        // Use CRNN if the model is loaded; otherwise fallback to Tesseract
+        if (crnnModel) {
+          recognizedText = await recognizeWithCRNN(file);
+        } else {
+          const { data: { text } } = await Tesseract.recognize(file, 'mar+eng');
+          recognizedText = text;
+        }
+        setOcrResult(recognizedText);
         setUploadStatus("Completed");
-        const lowerText = text.toLowerCase();
+        const lowerText = recognizedText.toLowerCase();
         // Extract a numeric income value after the word "income"
         const match = lowerText.match(/income\s*(?:is|:)?\s*(\d+)/);
         if (match && match[1]) {

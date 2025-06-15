@@ -46,10 +46,10 @@ const StudentForm = () => {
   };
 
   const validateEmail = (email) => {
-    if (!email.endsWith('@vit.edu')) {
+    if (!email.endsWith('@abc.edu')) {
       setValidationErrors({
         ...validationErrors,
-        email: "Please use your VIT email address (@vit.edu)",
+        email: "Please use your VIT email address (@abc.edu)",
       });
       return false;
     }
@@ -86,7 +86,7 @@ const StudentForm = () => {
   const validateForm = () => {
     const errors = {};
     if (!validateEmail(student.email)) {
-      errors.email = "Please use your VIT email address (@vit.edu)";
+      errors.email = "Please use your abc email address (@abc.edu)";
     }
     if (!validatePassword(student.password)) {
       errors.password = validationErrors.password;
@@ -137,7 +137,7 @@ const StudentForm = () => {
         onChange={(e) => handleFormChange(e)}
       />
       <label className="block" htmlFor="email">
-        Email: <span className="text-sm text-slate-500">(@vit.edu required)</span>
+        Email: <span className="text-sm text-slate-500">(@abc.edu required)</span>
       </label>
       <input
         className={`mb-1 block h-10 w-full rounded-md border-[1.5px] border-solid ${
